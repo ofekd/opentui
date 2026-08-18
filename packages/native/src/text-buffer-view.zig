@@ -595,10 +595,14 @@ pub const UnifiedTextBufferView = struct {
 
         const text_end_offset = self.getTextEndOffset();
 
-        const anchor_offset = if (anchor_above or anchorX < 0)
+        // Vertical clamping must win over the x check: a point below this view
+        // maps to the text end even when its x is left of the view.
+        const anchor_offset = if (anchor_above)
             0
         else if (anchor_below)
             text_end_offset
+        else if (anchorX < 0)
+            0
         else
             self.coordsToCharOffset(anchorX, anchorY) orelse {
                 const had_selection = self.selection != null;
@@ -607,10 +611,12 @@ pub const UnifiedTextBufferView = struct {
                 return had_selection;
             };
 
-        const focus_offset = if (focus_above or focusX < 0)
+        const focus_offset = if (focus_above)
             0
         else if (focus_below)
             text_end_offset
+        else if (focusX < 0)
+            0
         else
             self.coordsToCharOffset(focusX, focusY) orelse {
                 const had_selection = self.selection != null;
@@ -662,10 +668,13 @@ pub const UnifiedTextBufferView = struct {
 
         const text_end_offset = self.getTextEndOffset();
 
-        const focus_col_offset = if (focus_above or focusX < 0)
+        // Same ordering as setLocalSelectionStyle: below beats x < 0.
+        const focus_col_offset = if (focus_above)
             0
         else if (focus_below)
             text_end_offset
+        else if (focusX < 0)
+            0
         else
             self.coordsToCharOffset(focusX, focusY) orelse return false;
 

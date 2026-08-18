@@ -983,7 +983,10 @@ describe("Textarea - Selection Tests", () => {
       expect(codeText2.hasSelection()).toBe(true)
       const codeText2Selected = codeText2.getSelectedText()
       const codeText2Content = "  const selected = getText()"
-      expect(codeText2Selected).toBe(codeText2Content.substring(0, 15))
+      // The anchor is below this renderable, so it clamps to the text end
+      // (vertical position wins over its x being left of the view): the
+      // selection runs from the focus to the end and continues downward.
+      expect(codeText2Selected).toBe(codeText2Content.substring(15))
 
       bottomText.destroy()
       rightBox.destroy()

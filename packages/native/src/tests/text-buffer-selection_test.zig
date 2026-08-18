@@ -1054,3 +1054,123 @@ test "Selection - updateLocalSelection preserves anchor correctly" {
     try std.testing.expect(std.mem.find(u8, text, "e 2") != null);
     try std.testing.expect(std.mem.find(u8, text, "\nLine 3") != null);
 }
+
+test "Selection - focus below view with negative x clamps to text end" {
+    const pool = gp.initGlobalPool(std.testing.allocator);
+    defer gp.deinitGlobalPool();
+    const link_pool = link.initGlobalLinkPool(std.testing.allocator);
+    defer link.deinitGlobalLinkPool();
+
+    var tb = try TextBuffer.init(std.testing.allocator, pool, link_pool, .unicode);
+    defer tb.deinit();
+
+    var view = try TextBufferView.init(std.testing.allocator, tb);
+    defer view.deinit();
+
+    try tb.setText("Line 1\nLine 2\nLine 3");
+
+    // Focus is below the last line (y=5 > max_y=2) AND left of the view (x=-3).
+    // Vertical clamping must win: the focus maps to the text end (offset 20),
+    // not to offset 0 via the x < 0 check.
+    _ = view.setLocalSelection(2, 0, -3, 5, null, null);
+
+    const packed_info = view.packSelectionInfo();
+    try std.testing.expect(packed_info != 0xFFFFFFFF_FFFFFFFF);
+
+    const start = @as(u32, @intCast(packed_info >> 32));
+    const end = @as(u32, @intCast(packed_info & 0xFFFFFFFF));
+    try std.testing.expectEqual(@as(u32, 2), start);
+    try std.testing.expectEqual(@as(u32, 20), end);
+
+    var out_buffer: [100]u8 = undefined;
+    const len = view.getSelectedTextIntoBuffer(&out_buffer);
+    try std.testing.expectEqualStrings("ne 1\nLine 2\nLine 3", out_buffer[0..len]);
+}
+
+test "Selection - anchor below view with negative x clamps to text end" {
+    const pool = gp.initGlobalPool(std.testing.allocator);
+    defer gp.deinitGlobalPool();
+    const link_pool = link.initGlobalLinkPool(std.testing.allocator);
+    defer link.deinitGlobalLinkPool();
+
+    var tb = try TextBuffer.init(std.testing.allocator, pool, link_pool, .unicode);
+    defer tb.deinit();
+
+    var view = try TextBufferView.init(std.testing.allocator, tb);
+    defer view.deinit();
+
+    try tb.setText("Line 1\nLine 2\nLine 3");
+
+    // Same as above but for the anchor arm: anchor below the view with x=-3
+    // maps to the text end, so the selection spans [2, 20).
+    _ = view.setLocalSelection(-3, 5, 2, 0, null, null);
+
+    const packed_info = view.packSelectionInfo();
+    try std.testing.expect(packed_info != 0xFFFFFFFF_FFFFFFFF);
+
+    const start = @as(u32, @intCast(packed_info >> 32));
+    const end = @as(u32, @intCast(packed_info & 0xFFFFFFFF));
+    try std.testing.expectEqual(@as(u32, 2), start);
+    try std.testing.expectEqual(@as(u32, 20), end);
+}
+
+test "Selection - updateLocalSelection focus below view with negative x clamps to text end" {
+    const pool = gp.initGlobalPool(std.testing.allocator);
+    defer gp.deinitGlobalPool();
+    const link_pool = link.initGlobalLinkPool(std.testing.allocator);
+    defer link.deinitGlobalLinkPool();
+
+    var tb = try TextBuffer.init(std.testing.allocator, pool, link_pool, .unicode);
+    defer tb.deinit();
+
+    var view = try TextBufferView.init(std.testing.allocator, tb);
+    defer view.deinit();
+
+    try tb.setText("Line 1\nLine 2\nLine 3");
+
+    _ = view.setLocalSelection(2, 0, 2, 0, null, null);
+
+    // Drag continues below the view with x=-3: the focus-only update path must
+    // also let vertical clamping win over the x < 0 check.
+    const changed = view.updateLocalSelection(2, 0, -3, 5, null, null);
+    try std.testing.expect(changed);
+
+    const packed_info = view.packSelectionInfo();
+    try std.testing.expect(packed_info != 0xFFFFFFFF_FFFFFFFF);
+
+    const start = @as(u32, @intCast(packed_info >> 32));
+    const end = @as(u32, @intCast(packed_info & 0xFFFFFFFF));
+    try std.testing.expectEqual(@as(u32, 2), start);
+    try std.testing.expectEqual(@as(u32, 20), end);
+
+    var out_buffer: [100]u8 = undefined;
+    const len = view.getSelectedTextIntoBuffer(&out_buffer);
+    try std.testing.expectEqualStrings("ne 1\nLine 2\nLine 3", out_buffer[0..len]);
+}
+
+test "Selection - negative x on an in-view row still clamps to text start" {
+    const pool = gp.initGlobalPool(std.testing.allocator);
+    defer gp.deinitGlobalPool();
+    const link_pool = link.initGlobalLinkPool(std.testing.allocator);
+    defer link.deinitGlobalLinkPool();
+
+    var tb = try TextBuffer.init(std.testing.allocator, pool, link_pool, .unicode);
+    defer tb.deinit();
+
+    var view = try TextBufferView.init(std.testing.allocator, tb);
+    defer view.deinit();
+
+    try tb.setText("Line 1\nLine 2\nLine 3");
+
+    // Focus row is inside the view (y=1) but x=-2: the x < 0 arm applies and
+    // maps to offset 0. Anchor (5, 1) is offset 12 (line 1 starts at 7).
+    _ = view.setLocalSelection(5, 1, -2, 1, null, null);
+
+    const packed_info = view.packSelectionInfo();
+    try std.testing.expect(packed_info != 0xFFFFFFFF_FFFFFFFF);
+
+    const start = @as(u32, @intCast(packed_info >> 32));
+    const end = @as(u32, @intCast(packed_info & 0xFFFFFFFF));
+    try std.testing.expectEqual(@as(u32, 0), start);
+    try std.testing.expectEqual(@as(u32, 12), end);
+}
