@@ -657,10 +657,13 @@ fn buildNativeTarget(
     build_options: *std.Build.Step.Options,
     macos_sdk_path: ?[]const u8,
 ) !void {
-    // Find the matching supported target for the native platform
+    // Find the matching supported targets for the native platform
     const native_arch = @tagName(builtin.cpu.arch);
     const native_os = @tagName(builtin.os.tag);
 
+    // Linux matches both the gnu and musl targets; a consumer needs each on disk
+    // because the runtime picks between them from the environment.
+    var matched_any = false;
     for (SUPPORTED_TARGETS) |supported_target| {
         // Check if this target matches the native platform
         if (std.mem.find(u8, supported_target.zig_target, native_arch) != null and
@@ -675,9 +678,11 @@ fn buildNativeTarget(
                 build_options,
                 macos_sdk_path,
             );
-            return;
+            matched_any = true;
         }
     }
+
+    if (matched_any) return;
 
     std.debug.print("No matching supported target for native platform ({s}-{s})\n", .{ native_arch, native_os });
     return error.UnsupportedNativeTarget;

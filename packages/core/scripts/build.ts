@@ -54,13 +54,17 @@ const buildAll = args.includes("--all") // Build for all platforms
 const gpaSafeStats = args.includes("--gpa-safe-stats")
 const skipZig = args.includes("--skip-zig")
 
-const getHostVariant = (): Variant => {
-  const hostVariant = variants.find((variant) => variant.platform === process.platform && variant.arch === process.arch)
-  if (!hostVariant) {
+// Linux has both a glibc and a musl variant, and a consumer needs each on disk
+// because the runtime picks between them from the environment.
+const getHostVariants = (): Variant[] => {
+  const hostVariants = variants.filter(
+    (variant) => variant.platform === process.platform && variant.arch === process.arch,
+  )
+  if (hostVariants.length === 0) {
     console.error(`Error: Unsupported host platform for native builds: ${process.platform}-${process.arch}`)
     process.exit(1)
   }
-  return hostVariant
+  return hostVariants
 }
 
 if (!buildLib && !buildNative) {
@@ -191,7 +195,7 @@ if (buildNative) {
 
   if (!skipZig) runCommand("zig", zigArgs, nativeRoot, "Error: Zig build failed")
 
-  const variantsToPackage = buildAll ? variants : [getHostVariant()]
+  const variantsToPackage = buildAll ? variants : getHostVariants()
 
   for (const { platform, arch, abi } of variantsToPackage) {
     const nativeName = `${packageJson.name}-${platform}-${arch}${abi ? `-${abi}` : ""}`
